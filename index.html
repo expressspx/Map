@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Mapa + Clusters + Bairro predominante (Hover)</title>
+  <title>Mapa + Excel (Seleção por clique + Aba com seta + Fullscreen)</title>
 
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -12,39 +12,169 @@
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
   <style>
-    body { margin:0; font-family: system-ui, Arial; }
-    #map { height:100vh; }
+    :root{
+      --panelW: 420px;
+      --radius: 18px;
 
-    .panel {
-      position: fixed; left: 12px; top: 12px; z-index: 9999;
-      width: 380px; max-width: calc(100vw - 24px);
-      background: rgba(255,255,255,.96);
-      border: 1px solid #ddd;
-      padding: 12px;
-      border-radius: 14px;
-      box-shadow: 0 10px 28px rgba(0,0,0,.14);
-      font-size: 13px;
+      --glass: rgba(255,255,255,.92);
+      --glass2: rgba(255,255,255,.80);
+      --border: rgba(0,0,0,.10);
+
+      --shadow: 0 18px 50px rgba(0,0,0,.18);
+      --shadow2: 0 12px 30px rgba(0,0,0,.14);
+
+      --muted: rgba(0,0,0,.60);
+      --stroke: #ff2d2d;
+      --dark: #0b0b0b;
     }
-    .panel h3 { margin: 0 0 8px; font-size: 14px; }
-    .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
-    .muted { opacity:.75; }
-    .pill {
-      display:inline-block; padding: 4px 8px; border-radius: 999px;
-      border: 1px solid #e5e5e5; background:#fff;
+
+    *{ box-sizing:border-box; }
+    html, body { height:100%; }
+    body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; }
+    #map { height:100vh; width:100vw; }
+
+    /* Remove o "quadrado feio" de foco no Leaflet */
+    .leaflet-container :focus { outline: none !important; }
+    .leaflet-interactive { outline: none !important; }
+    svg.leaflet-zoom-animated path.leaflet-interactive:focus { outline: none !important; }
+
+    /* Tooltip / popup modernos */
+    .leaflet-tooltip{
+      background: rgba(20,20,20,.92);
+      color: #fff;
+      border: 1px solid rgba(255,255,255,.14);
+      border-radius: 14px;
+      padding: 7px 12px;
+      box-shadow: 0 16px 34px rgba(0,0,0,.28);
+      font-weight: 900;
+      letter-spacing: .2px;
+    }
+    .leaflet-popup-content-wrapper{
+      border-radius: 18px;
+      box-shadow: var(--shadow);
+      border: 1px solid rgba(0,0,0,.08);
+      background: rgba(255,255,255,.98);
+    }
+    .leaflet-popup-tip{ box-shadow: var(--shadow2); }
+    .popupBox{ font-family: system-ui; font-size: 13px; line-height: 1.25; }
+    .popupBox .title{
+      display:flex; align-items:center; gap:10px;
+      font-weight: 1000; font-size: 14px; margin-bottom: 10px;
+    }
+    .tag{
+      display:inline-flex; align-items:center;
+      padding: 4px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(0,0,0,.10);
+      background: rgba(255,45,45,.10);
+      font-weight: 1000;
+    }
+
+    /* =========================
+       LABEL DO CLUSTER (SEM “BOLINHA BRANCA”)
+       - agora fica só o texto, com sombra e contorno, bem agradável
+       ========================= */
+    .cluster-text {
+      background: transparent;
+      border: none;
+      padding: 0;
+      margin: 0;
+      color: #101010;
+      font-weight: 1000;
+      font-size: 13px;
+      letter-spacing: .4px;
+      text-shadow:
+        0 1px 0 rgba(255,255,255,.85),
+        0 2px 6px rgba(0,0,0,.25);
+      pointer-events: none;
+      white-space: nowrap;
+      opacity: .96;
+    }
+
+    /* =========================
+       DRAWER (PAINEL)
+       ========================= */
+    .drawer{
+      position: fixed;
+      left: 12px;
+      top: 12px;
+      z-index: 9999;
+      width: var(--panelW);
+      max-width: calc(100vw - 24px);
+      border-radius: var(--radius);
+      background: linear-gradient(180deg, var(--glass), var(--glass2));
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+
+      transform: translateX(0);
+      transition: transform .22s ease;
+    }
+    .drawer.closed{
+      transform: translateX(calc(-1 * (var(--panelW) + 22px)));
+    }
+
+    .panelInner{ padding: 12px; font-size: 13px; }
+
+    .panelHead{
+      display:flex;
+      align-items:flex-start;
+      justify-content: space-between;
+      gap:10px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid rgba(0,0,0,.07);
+    }
+    .panelTitle{
+      margin:0;
+      font-size: 14px;
+      font-weight: 1000;
+      letter-spacing: .2px;
+    }
+    .panelSub{
+      margin-top:4px;
+      opacity:.75;
       font-size: 12px;
     }
+
+    .headBtns{ display:flex; gap:8px; align-items:center; }
+    .iconBtn{
+      border: 1px solid rgba(0,0,0,.10);
+      background: rgba(255,255,255,.92);
+      border-radius: 12px;
+      padding: 8px 10px;
+      cursor:pointer;
+      font-weight: 1000;
+      line-height: 1;
+    }
+    .iconBtn:active{ transform: translateY(1px); }
+
+    .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+    .muted { opacity:.78; color: var(--muted); }
+
+    .pill {
+      display:inline-block;
+      padding: 6px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(0,0,0,.10);
+      background: rgba(255,255,255,.72);
+      font-size: 12px;
+      font-weight: 900;
+      backdrop-filter: blur(10px);
+    }
+
     input[type="file"] { width: 100%; }
 
     .clustersBox {
       margin-top: 10px;
-      border: 1px solid #e7e7e7;
-      border-radius: 12px;
-      background: #fff;
+      border: 1px solid rgba(0,0,0,.08);
+      border-radius: 16px;
+      background: rgba(255,255,255,.70);
       overflow: hidden;
+      backdrop-filter: blur(12px);
     }
     .clustersHeader {
       padding: 10px 10px;
-      border-bottom: 1px solid #eee;
+      border-bottom: 1px solid rgba(0,0,0,.06);
       display: flex;
       justify-content: space-between;
       align-items: center;
@@ -52,26 +182,30 @@
     }
     .clustersHeader input{
       flex: 1;
-      padding: 8px 10px;
-      border-radius: 10px;
-      border: 1px solid #ddd;
+      padding: 10px 11px;
+      border-radius: 14px;
+      border: 1px solid rgba(0,0,0,.14);
       outline: none;
       font-size: 13px;
+      background: rgba(255,255,255,.96);
     }
+
     .btn {
-      padding: 8px 10px;
-      border-radius: 10px;
-      border: 1px solid #ddd;
-      background: #fff;
+      padding: 10px 10px;
+      border-radius: 14px;
+      border: 1px solid rgba(0,0,0,.12);
+      background: rgba(255,255,255,.92);
       cursor: pointer;
       font-size: 12px;
+      font-weight: 1000;
       user-select:none;
+      transition: transform .06s ease;
     }
     .btn:active { transform: translateY(1px); }
 
     .clustersActions{
       padding: 10px;
-      border-bottom: 1px solid #eee;
+      border-bottom: 1px solid rgba(0,0,0,.06);
       display:flex;
       gap:8px;
       flex-wrap:wrap;
@@ -82,31 +216,96 @@
       overflow: auto;
       padding: 6px 6px 10px;
     }
+
     .item {
       display:flex;
       align-items:center;
       justify-content: space-between;
       gap: 10px;
-      padding: 8px 10px;
-      border-radius: 10px;
-      margin: 6px 4px;
-      border: 1px solid #f1f1f1;
-      background: #fff;
+      padding: 10px 10px;
+      border-radius: 16px;
+      margin: 8px 6px;
+      border: 1px solid rgba(0,0,0,.06);
+      background: rgba(255,255,255,.92);
+      box-shadow: 0 12px 20px rgba(0,0,0,.06);
     }
-    .item small { opacity:.75; }
+    .item small { opacity:.78; }
 
-    /* Label no centro do polígono: SÓ CLUSTER */
-    .cluster-center {
-      background: rgba(255,255,255,.85);
-      border: 1px solid rgba(0,0,0,.25);
+    .clustersList::-webkit-scrollbar{ width: 10px; }
+    .clustersList::-webkit-scrollbar-thumb{
+      background: rgba(0,0,0,.14);
       border-radius: 999px;
-      padding: 2px 8px;
-      font-weight: 900;
-      font-size: 12px;
-      color: #111;
-      box-shadow: 0 6px 18px rgba(0,0,0,.10);
-      pointer-events: none;
-      white-space: nowrap;
+      border: 3px solid rgba(255,255,255,0);
+      background-clip: padding-box;
+    }
+
+    /* Path glow/sombra */
+    .cluster-path{ filter: drop-shadow(0 10px 14px rgba(0,0,0,.22)); }
+    .cluster-path.nodata{ filter: drop-shadow(0 8px 14px rgba(0,0,0,.30)); }
+    .cluster-path.selected{ filter: drop-shadow(0 12px 18px rgba(0,0,0,.34)); }
+
+    /* =========================
+       ABINHA COM SETA (IGUAL FOTO)
+       ========================= */
+    .tabArrow{
+      position: fixed;
+      z-index: 10000;
+      top: 86px;
+      left: calc(12px + var(--panelW) - 10px);
+      height: 44px;
+      padding: 0 12px 0 10px;
+
+      display:flex;
+      align-items:center;
+      gap:10px;
+
+      border-radius: 999px;
+      background: rgba(255,255,255,.92);
+      border: 1px solid rgba(0,0,0,.12);
+      box-shadow: var(--shadow2);
+      backdrop-filter: blur(10px);
+
+      cursor:pointer;
+      user-select:none;
+
+      transition: left .22s ease;
+    }
+    .tabArrow.closed{ left: 12px; }
+
+    .tabArrow .dot{
+      width:10px;height:10px;border-radius:999px;
+      background: var(--stroke);
+      box-shadow: 0 0 0 6px rgba(255,45,45,.16);
+    }
+    .tabArrow .txt{
+      display:flex;
+      flex-direction:column;
+      line-height:1.05;
+    }
+    .tabArrow b{ font-size: 13px; font-weight: 1000; }
+    .tabArrow small{ opacity:.72; font-weight: 900; }
+
+    .chev{
+      width: 30px;
+      height: 30px;
+      border-radius: 999px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      border: 1px solid rgba(0,0,0,.12);
+      background: rgba(255,255,255,.90);
+      font-weight: 1000;
+      line-height: 1;
+      transition: transform .20s ease;
+    }
+    .tabArrow .chev::before{ content: "›"; font-size: 22px; margin-top: -2px; }
+    .tabArrow.closed .chev{ transform: rotate(180deg); }
+
+    @media (max-width: 480px){
+      :root{ --panelW: 92vw; }
+      .drawer{ top: 62px; }
+      .tabArrow{ top: 12px; left: calc(12px + var(--panelW) - 10px); }
+      .tabArrow.closed{ left: 12px; }
     }
   </style>
 </head>
@@ -114,97 +313,163 @@
 
 <div id="map"></div>
 
-<div class="panel">
-  <h3>Mapa + Excel (bairro predominante por cluster)</h3>
-
-  <div class="row" style="margin-bottom:8px">
-    <span class="pill" id="geoStatus">GeoJSON: carregando…</span>
-    <span class="pill" id="xlsStatus">Excel: não importado</span>
+<!-- Abinha com seta -->
+<div class="tabArrow" id="tabArrow" title="Abrir/Fechar painel">
+  <span class="dot"></span>
+  <div class="txt">
+    <b>Painel</b>
+    <small id="tabHint">aberto</small>
   </div>
+  <span class="chev" aria-hidden="true"></span>
+</div>
 
-  <div style="margin-bottom:8px">
-    <input id="xlsxInput" type="file" accept=".xlsx,.xls" />
-    <div class="muted" style="margin-top:6px">
-      Regras: <b>Neighborhood = coluna D</b> e <b>Cluster = coluna G</b>.
+<!-- Drawer -->
+<div class="drawer" id="drawer">
+  <div class="panelInner">
+
+    <div class="panelHead">
+      <div>
+        <div class="panelTitle">Mapa + Excel (bairro predominante)</div>
+        <div class="panelSub">Clique no mapa ou marque no painel.</div>
+      </div>
+
+      <div class="headBtns">
+        <button class="iconBtn" id="btnFs" title="Tela cheia">⛶</button>
+        <button class="iconBtn" id="btnClose" title="Fechar">✕</button>
+      </div>
     </div>
-  </div>
 
-  <div class="clustersBox">
-    <div class="clustersHeader">
-      <input id="searchClusters" placeholder="Filtrar clusters (ex: B-14)" />
-      <span class="pill" id="selCount">0 selecionados</span>
+    <div class="row" style="margin:10px 0 8px">
+      <span class="pill" id="geoStatus">GeoJSON: carregando…</span>
+      <span class="pill" id="xlsStatus">Excel: não importado</span>
     </div>
 
-    <div class="clustersActions">
-      <button class="btn" id="btnAll">Selecionar tudo</button>
-      <button class="btn" id="btnNone">Limpar</button>
-      <button class="btn" id="btnOnlyData">Somente com dados</button>
+    <div style="margin-bottom:8px">
+      <input id="xlsxInput" type="file" accept=".xlsx,.xls" />
+      <div class="muted" style="margin-top:6px">
+        Regras: <b>Neighborhood = coluna D</b> e <b>Cluster = coluna G</b>.
+      </div>
     </div>
 
-    <div class="clustersList" id="clustersList">
-      <div class="muted" style="padding:10px">Carregando áreas do GeoJSON…</div>
-    </div>
-  </div>
+    <div class="clustersBox">
+      <div class="clustersHeader">
+        <input id="searchClusters" placeholder="Filtrar clusters (ex: B-14)" />
+        <span class="pill" id="selCount">0 selecionados</span>
+      </div>
 
-  <div class="muted" style="margin-top:10px">
-    Dica: abra com Live Server (por causa do <code>fetch("./mapa.geojson")</code>).
+      <div class="clustersActions">
+        <button class="btn" id="btnAll">Selecionar tudo</button>
+        <button class="btn" id="btnNone">Limpar</button>
+        <button class="btn" id="btnOnlyData">Somente com dados</button>
+      </div>
+
+      <div class="clustersList" id="clustersList">
+        <div class="muted" style="padding:10px">Carregando áreas do GeoJSON…</div>
+      </div>
+    </div>
+
+    <div class="muted" style="margin-top:10px">
+      Dica: abra com Live Server (por causa do <code>fetch("./mapa.geojson")</code>).
+    </div>
+
   </div>
 </div>
 
 <script>
   // =========================
-  // CONFIG (opcional)
+  // CONFIG
   // =========================
-  // Se quiser evitar "embolado" quando estiver muito afastado:
-  // - aumente esse número (ex: 13)
-  // - ou coloque 0 para sempre mostrar
   const SHOW_LABELS_MIN_ZOOM = 12;
 
   // =========================
-  // MAPA BASE
+  // TAB + DRAWER
   // =========================
-  const map = L.map("map").setView([-23.45, -46.53], 12);
+  const drawer = document.getElementById("drawer");
+  const tabArrow = document.getElementById("tabArrow");
+  const tabHint = document.getElementById("tabHint");
+  const btnClose = document.getElementById("btnClose");
+  const btnFs = document.getElementById("btnFs");
+
+  function setDrawer(open){
+    drawer.classList.toggle("closed", !open);
+    tabArrow.classList.toggle("closed", !open);
+    tabHint.textContent = open ? "aberto" : "fechado";
+    setTimeout(() => map.invalidateSize(), 120);
+  }
+  function toggleDrawer(){
+    const isClosed = drawer.classList.contains("closed");
+    setDrawer(isClosed);
+  }
+  tabArrow.addEventListener("click", toggleDrawer);
+  btnClose.addEventListener("click", () => setDrawer(false));
+  setDrawer(true);
+
+  // =========================
+  // MAPA
+  // =========================
+  const map = L.map("map", { zoomControl: true }).setView([-23.45, -46.53], 12);
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    maxZoom: 19, attribution: "© OpenStreetMap"
+    maxZoom: 19,
+    attribution: "© OpenStreetMap"
   }).addTo(map);
 
   // =========================
-  // ESTILOS
+  // FULLSCREEN
   // =========================
-  // sem dados => escuro/apagado
+  async function toggleFullscreen(){
+    try{
+      if (!document.fullscreenElement) await document.documentElement.requestFullscreen();
+      else await document.exitFullscreen();
+      setTimeout(() => map.invalidateSize(), 150);
+    } catch(err){
+      console.warn(err);
+      alert("Seu navegador bloqueou o modo tela cheia. Tente clicar novamente.");
+    }
+  }
+  btnFs.addEventListener("click", (e) => { e.stopPropagation(); toggleFullscreen(); });
+  document.addEventListener("keydown", (e) => { if (e.key.toLowerCase() === "f") toggleFullscreen(); });
+
+  // =========================
+  // ESTILOS (PATH)
+  // =========================
   const styleNoData = () => ({
-    color: "#444",
-    weight: 1.2,
-    opacity: 0.9,
-    fillColor: "#111",
-    fillOpacity: 0.28
+    color: "#2f2f2f",
+    weight: 1.4,
+    opacity: 0.95,
+    fillColor: "#0b0b0b",
+    fillOpacity: 0.30,
+    lineJoin: "round",
+    lineCap: "round"
   });
 
-  // com dados, não selecionado => suave
   const styleNormal = () => ({
-    color: "#ff0000",
-    weight: 2.2,
+    color: "#ff2d2d",
+    weight: 2.4,
     opacity: 1,
-    fillColor: "#ff0000",
-    fillOpacity: 0.12
+    fillColor: "#ff2d2d",
+    fillOpacity: 0.12,
+    lineJoin: "round",
+    lineCap: "round"
   });
 
-  // selecionado => evidência
   const styleSelected = () => ({
-    color: "#000000",
-    weight: 4.6,
+    color: "#0b0b0b",
+    weight: 5.0,
     opacity: 1,
-    fillColor: "#ff0000",
-    fillOpacity: 0.38
+    fillColor: "#ff2d2d",
+    fillOpacity: 0.40,
+    lineJoin: "round",
+    lineCap: "round"
   });
 
-  // hover (só com dados e não selecionado)
   const styleHover = () => ({
-    color: "#ff0000",
+    color: "#ff2d2d",
     weight: 3.8,
     opacity: 1,
-    fillColor: "#ff0000",
-    fillOpacity: 0.22
+    fillColor: "#ff2d2d",
+    fillOpacity: 0.22,
+    lineJoin: "round",
+    lineCap: "round"
   });
 
   // =========================
@@ -232,19 +497,29 @@
     return feature.id ?? p.zone_id ?? p.id ?? p.ID ?? p.zone_name ?? p.name ?? `feat_${idx}`;
   }
 
+  function setLayerCssClasses(layer, classes){
+    const p = layer._path;
+    if (!p) return;
+    p.setAttribute("class", classes);
+  }
+
+  // Ordem A-1..A-n, depois B-1.., etc
+  function clusterKey(c){
+    const m = String(c).trim().match(/^([A-Za-z])-(\d+)$/);
+    if(!m) return { letter: "Z", num: 999999, raw: String(c) };
+    return { letter: m[1].toUpperCase(), num: parseInt(m[2], 10), raw: String(c) };
+  }
+
   // =========================
   // GLOBAIS
   // =========================
   let geoLayer = null;
 
-  const layerByCluster = new Map();      // cluster -> layer do polígono
-  const allClusters = [];               // todos os clusters do geojson
-  const selectedClusters = new Set();   // selecionados no painel
+  const layerByCluster = new Map();
+  const allClusters = [];
+  const selectedClusters = new Set();
 
-  // label no centro (marker) por cluster
-  const labelMarkerByCluster = new Map();
-
-  // Excel: cluster -> {total, topNeighborhood, topCount}
+  const labelMarkerByCluster = new Map(); // agora é texto (sem bolinha)
   const clusterInfo = new Map();
 
   // =========================
@@ -263,19 +538,12 @@
 
     for (let i = startRow; i < rows2D.length; i++) {
       const row = rows2D[i] || [];
-
       const neigh = normalizeNeighborhood(row[COL_NEIGH]);
       const cluster = normalizeCluster(row[COL_CLUSTER]);
-
       if (!cluster || !neigh) continue;
 
       if (!clusterInfo.has(cluster)) {
-        clusterInfo.set(cluster, {
-          total: 0,
-          counts: new Map(),
-          topNeighborhood: "",
-          topCount: 0
-        });
+        clusterInfo.set(cluster, { total: 0, counts: new Map(), topNeighborhood: "", topCount: 0 });
       }
 
       const info = clusterInfo.get(cluster);
@@ -293,28 +561,24 @@
   }
 
   // =========================
-  // LABEL NO CENTRO DO POLÍGONO (SÓ CLUSTER)
+  // LABEL NO CENTRO (SÓ TEXTO)
   // =========================
   function polygonCenterLatLng(layer) {
     return layer.getBounds().getCenter();
   }
 
   function removeAllCenterLabels() {
-    for (const [, marker] of labelMarkerByCluster) {
-      map.removeLayer(marker);
-    }
+    for (const [, marker] of labelMarkerByCluster) map.removeLayer(marker);
     labelMarkerByCluster.clear();
   }
 
   function setClusterCenterLabel(layer, cluster, hasData) {
-    // remove label antigo
     const old = labelMarkerByCluster.get(cluster);
     if (old) {
       map.removeLayer(old);
       labelMarkerByCluster.delete(cluster);
     }
 
-    // regra pra não embolar quando zoom está longe
     const z = map.getZoom();
     if (SHOW_LABELS_MIN_ZOOM > 0 && z < SHOW_LABELS_MIN_ZOOM) return;
 
@@ -324,7 +588,7 @@
       interactive: false,
       icon: L.divIcon({
         className: "",
-        html: `<div class="cluster-center" style="opacity:${hasData ? 1 : 0.55}">${cluster}</div>`
+        html: `<div class="cluster-text" style="opacity:${hasData ? 1 : 0.55}">${cluster}</div>`
       })
     }).addTo(map);
 
@@ -343,7 +607,19 @@
   }
 
   // =========================
-  // APLICAR ESTILOS + HOVER (bairro só no mouse)
+  // SELEÇÃO: clicar no pedaço => marca/desmarca
+  // =========================
+  function toggleClusterSelection(cluster){
+    if (selectedClusters.has(cluster)) selectedClusters.delete(cluster);
+    else selectedClusters.add(cluster);
+
+    updateSelectedCount();
+    applyStylesAndHover();
+    renderClusterList();
+  }
+
+  // =========================
+  // APLICAR ESTILOS + HOVER + CLICK
   // =========================
   function applyStylesAndHover() {
     if (!geoLayer) return;
@@ -351,72 +627,78 @@
     geoLayer.eachLayer(layer => {
       const cluster = normalizeCluster(getFeatureZoneId(layer.feature || {}, 0));
       const info = clusterInfo.get(cluster);
-
       const hasData = !!info?.topNeighborhood;
 
-      // seleção: se tiver algo selecionado, só as selecionadas ficam em evidência
       const selectionActive = selectedClusters.size > 0;
       const isSelected = selectionActive && selectedClusters.has(cluster);
 
-      // estilo base
       if (!hasData) {
         layer.setStyle(styleNoData());
       } else {
-        if (selectionActive) {
-          // se tem seleção ativa, não selecionadas ficam mais suaves
-          layer.setStyle(isSelected ? styleSelected() : styleNormal());
-        } else {
-          // sem seleção ativa: normal
-          layer.setStyle(styleNormal());
-        }
+        if (selectionActive) layer.setStyle(isSelected ? styleSelected() : styleNormal());
+        else layer.setStyle(styleNormal());
       }
 
-      // hover: mostra "cluster (bairro)" apenas quando passar o mouse
+      requestAnimationFrame(() => {
+        const base = "leaflet-interactive cluster-path";
+        const c1 = !hasData ? " nodata" : "";
+        const c2 = (hasData && selectionActive && isSelected) ? " selected" : "";
+        setLayerCssClasses(layer, base + c1 + c2);
+      });
+
       layer.off("mouseover");
       layer.off("mouseout");
+      layer.off("click");
 
       layer.on("mouseover", () => {
         if (!hasData) return;
 
-        // se não está selecionado (ou seleção nem existe), aplica hover
-        if (!(selectionActive && isSelected)) {
-          layer.setStyle(styleHover());
-        }
+        // se não estiver selecionado, aplica hover
+        const selectionActive2 = selectedClusters.size > 0;
+        const isSelected2 = selectionActive2 && selectedClusters.has(cluster);
+        if (!isSelected2) layer.setStyle(styleHover());
 
         const text = `${cluster} (${info.topNeighborhood})`;
-        layer.bindTooltip(text, {
-          sticky: true,
-          direction: "top",
-          opacity: 0.95
-        }).openTooltip();
+        layer.bindTooltip(text, { sticky:true, direction:"top", opacity:0.95 }).openTooltip();
       });
 
       layer.on("mouseout", () => {
-        // restaura estilo correto
-        if (!hasData) {
-          layer.setStyle(styleNoData());
-        } else {
-          if (selectionActive) {
-            layer.setStyle(isSelected ? styleSelected() : styleNormal());
-          } else {
-            layer.setStyle(styleNormal());
-          }
+        const info2 = clusterInfo.get(cluster);
+        const hasData2 = !!info2?.topNeighborhood;
+        const selectionActive2 = selectedClusters.size > 0;
+        const isSelected2 = selectionActive2 && selectedClusters.has(cluster);
+
+        if (!hasData2) layer.setStyle(styleNoData());
+        else {
+          if (selectionActive2) layer.setStyle(isSelected2 ? styleSelected() : styleNormal());
+          else layer.setStyle(styleNormal());
         }
 
         layer.closeTooltip();
         layer.unbindTooltip();
+
+        requestAnimationFrame(() => {
+          const base = "leaflet-interactive cluster-path";
+          const c1 = !hasData2 ? " nodata" : "";
+          const c2 = (hasData2 && selectionActive2 && isSelected2) ? " selected" : "";
+          setLayerCssClasses(layer, base + c1 + c2);
+        });
       });
 
-      // click: popup com detalhes (ajuda muito)
-      layer.off("click");
+      // CLICK: marca/desmarca + popup
       layer.on("click", () => {
+        if (hasData) toggleClusterSelection(cluster);
+
         const total = info?.total ?? 0;
         const top = info?.topNeighborhood ?? "—";
         const topCount = info?.topCount ?? 0;
 
         layer.bindPopup(`
-          <div style="font-family:system-ui; font-size:13px">
-            <div style="font-weight:900; margin-bottom:6px">${cluster}</div>
+          <div class="popupBox">
+            <div class="title">
+              <span class="tag">${cluster}</span>
+              <span style="opacity:.7;font-weight:900">${hasData ? "marcado/desmarcado" : "sem dados"}</span>
+            </div>
             <div><b>Bairro predominante:</b> ${top}</div>
             <div><b>Ocorrências do bairro:</b> ${topCount}</div>
             <div><b>Total (cluster):</b> ${total}</div>
@@ -425,7 +707,6 @@
       });
     });
 
-    // labels no centro (só cluster)
     refreshCenterLabels();
   }
 
@@ -444,7 +725,13 @@
     const q = (searchEl.value || "").trim().toUpperCase();
     clustersListEl.innerHTML = "";
 
-    const sorted = [...allClusters].sort((a,b) => a.localeCompare(b, "pt-BR"));
+    const sorted = [...allClusters].sort((a,b) => {
+      const A = clusterKey(a);
+      const B = clusterKey(b);
+      if (A.letter !== B.letter) return A.letter.localeCompare(B.letter, "pt-BR");
+      if (A.num !== B.num) return A.num - B.num;
+      return A.raw.localeCompare(B.raw, "pt-BR");
+    });
 
     let shown = 0;
     for (const c of sorted) {
@@ -553,11 +840,15 @@
       let idx = 0;
 
       geoLayer = L.geoJSON(data, {
-        style: styleNoData, // começa tudo escuro até importar excel
+        style: styleNoData,
         onEachFeature: (feature, layer) => {
           const cluster = normalizeCluster(getFeatureZoneId(feature, idx++));
           layerByCluster.set(cluster, layer);
           allClusters.push(cluster);
+
+          layer.on("add", () => {
+            requestAnimationFrame(() => setLayerCssClasses(layer, "leaflet-interactive cluster-path nodata"));
+          });
         }
       }).addTo(map);
 
@@ -573,7 +864,6 @@
       alert("Não carregou mapa.geojson. Abra com Live Server e veja o Console (F12).");
     });
 
-  // Recalcula labels quando mudar zoom (pra evitar embolo no zoom longe)
   map.on("zoomend", () => {
     refreshCenterLabels();
   });
@@ -603,6 +893,8 @@
 
       renderClusterList();
       applyStylesAndHover();
+
+      setDrawer(true);
     } catch (e) {
       console.error(e);
       document.getElementById("xlsStatus").textContent = "Excel: ERRO";
