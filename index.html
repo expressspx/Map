@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Mapa + Clusters + Bairro predominante (Hover)</title>
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- SheetJS para ler .xlsx no navegador -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+  <style>
+    body { margin:0; font-family: system-ui, Arial; }
+    #map { height:100vh; }
+
+    .panel {
+      position: fixed; left: 12px; top: 12px; z-index: 9999;
+      width: 380px; max-width: calc(100vw - 24px);
+      background: rgba(255,255,255,.96);
+      border: 1px solid #ddd;
+      padding: 12px;
+      border-radius: 14px;
+      box-shadow: 0 10px 28px rgba(0,0,0,.14);
+      font-size: 13px;
+    }
+    .panel h3 { margin: 0 0 8px; font-size: 14px; }
+    .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+    .muted { opacity:.75; }
+    .pill {
+      display:inline-block; padding: 4px 8px; border-radius: 999px;
+      border: 1px solid #e5e5e5; background:#fff;
+      font-size: 12px;
+    }
+    input[type="file"] { width: 100%; }
+
+    .clustersBox {
+      margin-top: 10px;
+      border: 1px solid #e7e7e7;
+      border-radius: 12px;
+      background: #fff;
+      overflow: hidden;
+    }
+    .clustersHeader {
+      padding: 10px 10px;
+      border-bottom: 1px solid #eee;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+    }
+    .clustersHeader input{
+      flex: 1;
+      padding: 8px 10px;
+      border-radius: 10px;
+      border: 1px solid #ddd;
+      outline: none;
+      font-size: 13px;
+    }
+    .btn {
+      padding: 8px 10px;
+      border-radius: 10px;
+      border: 1px solid #ddd;
+      background: #fff;
+      cursor: pointer;
+      font-size: 12px;
+      user-select:none;
+    }
+    .btn:active { transform: translateY(1px); }
+
+    .clustersActions{
+      padding: 10px;
+      border-bottom: 1px solid #eee;
+      display:flex;
+      gap:8px;
+      flex-wrap:wrap;
+    }
+
+    .clustersList {
+      max-height: 48vh;
+      overflow: auto;
+      padding: 6px 6px 10px;
+    }
+    .item {
+      display:flex;
+      align-items:center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 8px 10px;
+      border-radius: 10px;
+      margin: 6px 4px;
+      border: 1px solid #f1f1f1;
+      background: #fff;
+    }
+    .item small { opacity:.75; }
+
+    /* Label no centro do polígono: SÓ CLUSTER */
+    .cluster-center {
+      background: rgba(255,255,255,.85);
+      border: 1px solid rgba(0,0,0,.25);
+      border-radius: 999px;
+      padding: 2px 8px;
+      font-weight: 900;
+      font-size: 12px;
+      color: #111;
+      box-shadow: 0 6px 18px rgba(0,0,0,.10);
+      pointer-events: none;
+      white-space: nowrap;
+    }
+  </style>
+</head>
+<body>
+
+<div id="map"></div>
+
+<div class="panel">
+  <h3>Mapa + Excel (bairro predominante por cluster)</h3>
+
+  <div class="row" style="margin-bottom:8px">
+    <span class="pill" id="geoStatus">GeoJSON: carregando…</span>
+    <span class="pill" id="xlsStatus">Excel: não importado</span>
+  </div>
+
+  <div style="margin-bottom:8px">
+    <input id="xlsxInput" type="file" accept=".xlsx,.xls" />
+    <div class="muted" style="margin-top:6px">
+      Regras: <b>Neighborhood = coluna D</b> e <b>Cluster = coluna G</b>.
+    </div>
+  </div>
+
+  <div class="clustersBox">
+    <div class="clustersHeader">
+      <input id="searchClusters" placeholder="Filtrar clusters (ex: B-14)" />
+      <span class="pill" id="selCount">0 selecionados</span>
+    </div>
+
+    <div class="clustersActions">
+      <button class="btn" id="btnAll">Selecionar tudo</button>
+      <button class="btn" id="btnNone">Limpar</button>
+      <button class="btn" id="btnOnlyData">Somente com dados</button>
+    </div>
+
+    <div class="clustersList" id="clustersList">
+      <div class="muted" style="padding:10px">Carregando áreas do GeoJSON…</div>
+    </div>
+  </div>
+
+  <div class="muted" style="margin-top:10px">
+    Dica: abra com Live Server (por causa do <code>fetch("./mapa.geojson")</code>).
+  </div>
+</div>
+
+<script>
+  // =========================
+  // CONFIG (opcional)
+  // =========================
+  // Se quiser evitar "embolado" quando estiver muito afastado:
+  // - aumente esse número (ex: 13)
+  // - ou coloque 0 para sempre mostrar
+  const SHOW_LABELS_MIN_ZOOM = 12;
+
+  // =========================
+  // MAPA BASE
+  // =========================
+  const map = L.map("map").setView([-23.45, -46.53], 12);
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 19, attribution: "© OpenStreetMap"
+  }).addTo(map);
+
+  // =========================
+  // ESTILOS
+  // =========================
+  // sem dados => escuro/apagado
+  const styleNoData = () => ({
+    color: "#444",
+    weight: 1.2,
+    opacity: 0.9,
+    fillColor: "#111",
+    fillOpacity: 0.28
+  });
+
+  // com dados, não selecionado => suave
+  const styleNormal = () => ({
+    color: "#ff0000",
+    weight: 2.2,
+    opacity: 1,
+    fillColor: "#ff0000",
+    fillOpacity: 0.12
+  });
+
+  // selecionado => evidência
+  const styleSelected = () => ({
+    color: "#000000",
+    weight: 4.6,
+    opacity: 1,
+    fillColor: "#ff0000",
+    fillOpacity: 0.38
+  });
+
+  // hover (só com dados e não selecionado)
+  const styleHover = () => ({
+    color: "#ff0000",
+    weight: 3.8,
+    opacity: 1,
+    fillColor: "#ff0000",
+    fillOpacity: 0.22
+  });
+
+  // =========================
+  // HELPERS
+  // =========================
+  function normalizeCluster(v) {
+    if (v == null) return "";
+    let s = String(v).trim();
+    if (!s) return "";
+    s = s.replace(/[()]/g, "").trim();
+    const m = s.match(/[A-Za-z]\s*-\s*\d+/);
+    if (m) return m[0].replace(/\s*/g, "");
+    return s.replace(/\s+/g, " ");
+  }
+
+  function normalizeNeighborhood(v) {
+    if (v == null) return "";
+    let s = String(v).trim();
+    if (!s) return "";
+    return s.replace(/\s+/g, " ");
+  }
+
+  function getFeatureZoneId(feature, idx) {
+    const p = feature.properties || {};
+    return feature.id ?? p.zone_id ?? p.id ?? p.ID ?? p.zone_name ?? p.name ?? `feat_${idx}`;
+  }
+
+  // =========================
+  // GLOBAIS
+  // =========================
+  let geoLayer = null;
+
+  const layerByCluster = new Map();      // cluster -> layer do polígono
+  const allClusters = [];               // todos os clusters do geojson
+  const selectedClusters = new Set();   // selecionados no painel
+
+  // label no centro (marker) por cluster
+  const labelMarkerByCluster = new Map();
+
+  // Excel: cluster -> {total, topNeighborhood, topCount}
+  const clusterInfo = new Map();
+
+  // =========================
+  // EXCEL => BAIRRO PREDOMINANTE
+  // =========================
+  function computePredominantNeighborhoodByCluster(rows2D) {
+    clusterInfo.clear();
+
+    const COL_NEIGH = 3;   // D
+    const COL_CLUSTER = 6; // G
+
+    let startRow = 0;
+    const header = rows2D[0] || [];
+    const headerJoined = header.map(x => String(x ?? "").toLowerCase()).join(" | ");
+    if (headerJoined.includes("neigh") || headerJoined.includes("cluster") || headerJoined.includes("bairro")) startRow = 1;
+
+    for (let i = startRow; i < rows2D.length; i++) {
+      const row = rows2D[i] || [];
+
+      const neigh = normalizeNeighborhood(row[COL_NEIGH]);
+      const cluster = normalizeCluster(row[COL_CLUSTER]);
+
+      if (!cluster || !neigh) continue;
+
+      if (!clusterInfo.has(cluster)) {
+        clusterInfo.set(cluster, {
+          total: 0,
+          counts: new Map(),
+          topNeighborhood: "",
+          topCount: 0
+        });
+      }
+
+      const info = clusterInfo.get(cluster);
+      info.total += 1;
+
+      const prev = info.counts.get(neigh) || 0;
+      const next = prev + 1;
+      info.counts.set(neigh, next);
+
+      if (next > info.topCount) {
+        info.topCount = next;
+        info.topNeighborhood = neigh;
+      }
+    }
+  }
+
+  // =========================
+  // LABEL NO CENTRO DO POLÍGONO (SÓ CLUSTER)
+  // =========================
+  function polygonCenterLatLng(layer) {
+    return layer.getBounds().getCenter();
+  }
+
+  function removeAllCenterLabels() {
+    for (const [, marker] of labelMarkerByCluster) {
+      map.removeLayer(marker);
+    }
+    labelMarkerByCluster.clear();
+  }
+
+  function setClusterCenterLabel(layer, cluster, hasData) {
+    // remove label antigo
+    const old = labelMarkerByCluster.get(cluster);
+    if (old) {
+      map.removeLayer(old);
+      labelMarkerByCluster.delete(cluster);
+    }
+
+    // regra pra não embolar quando zoom está longe
+    const z = map.getZoom();
+    if (SHOW_LABELS_MIN_ZOOM > 0 && z < SHOW_LABELS_MIN_ZOOM) return;
+
+    const center = polygonCenterLatLng(layer);
+
+    const marker = L.marker(center, {
+      interactive: false,
+      icon: L.divIcon({
+        className: "",
+        html: `<div class="cluster-center" style="opacity:${hasData ? 1 : 0.55}">${cluster}</div>`
+      })
+    }).addTo(map);
+
+    labelMarkerByCluster.set(cluster, marker);
+  }
+
+  function refreshCenterLabels() {
+    if (!geoLayer) return;
+    removeAllCenterLabels();
+    geoLayer.eachLayer(layer => {
+      const cluster = normalizeCluster(getFeatureZoneId(layer.feature || {}, 0));
+      const info = clusterInfo.get(cluster);
+      const hasData = !!info?.topNeighborhood;
+      setClusterCenterLabel(layer, cluster, hasData);
+    });
+  }
+
+  // =========================
+  // APLICAR ESTILOS + HOVER (bairro só no mouse)
+  // =========================
+  function applyStylesAndHover() {
+    if (!geoLayer) return;
+
+    geoLayer.eachLayer(layer => {
+      const cluster = normalizeCluster(getFeatureZoneId(layer.feature || {}, 0));
+      const info = clusterInfo.get(cluster);
+
+      const hasData = !!info?.topNeighborhood;
+
+      // seleção: se tiver algo selecionado, só as selecionadas ficam em evidência
+      const selectionActive = selectedClusters.size > 0;
+      const isSelected = selectionActive && selectedClusters.has(cluster);
+
+      // estilo base
+      if (!hasData) {
+        layer.setStyle(styleNoData());
+      } else {
+        if (selectionActive) {
+          // se tem seleção ativa, não selecionadas ficam mais suaves
+          layer.setStyle(isSelected ? styleSelected() : styleNormal());
+        } else {
+          // sem seleção ativa: normal
+          layer.setStyle(styleNormal());
+        }
+      }
+
+      // hover: mostra "cluster (bairro)" apenas quando passar o mouse
+      layer.off("mouseover");
+      layer.off("mouseout");
+
+      layer.on("mouseover", () => {
+        if (!hasData) return;
+
+        // se não está selecionado (ou seleção nem existe), aplica hover
+        if (!(selectionActive && isSelected)) {
+          layer.setStyle(styleHover());
+        }
+
+        const text = `${cluster} (${info.topNeighborhood})`;
+        layer.bindTooltip(text, {
+          sticky: true,
+          direction: "top",
+          opacity: 0.95
+        }).openTooltip();
+      });
+
+      layer.on("mouseout", () => {
+        // restaura estilo correto
+        if (!hasData) {
+          layer.setStyle(styleNoData());
+        } else {
+          if (selectionActive) {
+            layer.setStyle(isSelected ? styleSelected() : styleNormal());
+          } else {
+            layer.setStyle(styleNormal());
+          }
+        }
+
+        layer.closeTooltip();
+        layer.unbindTooltip();
+      });
+
+      // click: popup com detalhes (ajuda muito)
+      layer.off("click");
+      layer.on("click", () => {
+        const total = info?.total ?? 0;
+        const top = info?.topNeighborhood ?? "—";
+        const topCount = info?.topCount ?? 0;
+
+        layer.bindPopup(`
+          <div style="font-family:system-ui; font-size:13px">
+            <div style="font-weight:900; margin-bottom:6px">${cluster}</div>
+            <div><b>Bairro predominante:</b> ${top}</div>
+            <div><b>Ocorrências do bairro:</b> ${topCount}</div>
+            <div><b>Total (cluster):</b> ${total}</div>
+          </div>
+        `).openPopup();
+      });
+    });
+
+    // labels no centro (só cluster)
+    refreshCenterLabels();
+  }
+
+  // =========================
+  // PAINEL DE CLUSTERS
+  // =========================
+  const clustersListEl = document.getElementById("clustersList");
+  const searchEl = document.getElementById("searchClusters");
+  const selCountEl = document.getElementById("selCount");
+
+  function updateSelectedCount() {
+    selCountEl.textContent = `${selectedClusters.size} selecionados`;
+  }
+
+  function renderClusterList() {
+    const q = (searchEl.value || "").trim().toUpperCase();
+    clustersListEl.innerHTML = "";
+
+    const sorted = [...allClusters].sort((a,b) => a.localeCompare(b, "pt-BR"));
+
+    let shown = 0;
+    for (const c of sorted) {
+      if (q && !c.toUpperCase().includes(q)) continue;
+      shown++;
+
+      const info = clusterInfo.get(c);
+      const hasData = !!info?.topNeighborhood;
+      const checked = selectedClusters.has(c);
+
+      const item = document.createElement("div");
+      item.className = "item";
+
+      const left = document.createElement("div");
+      left.style.display = "flex";
+      left.style.flexDirection = "column";
+
+      const title = document.createElement("div");
+      title.innerHTML = `<b>${c}</b> ${hasData ? "" : "<small>(sem dados)</small>"}`;
+
+      const sub = document.createElement("small");
+      sub.textContent = hasData ? `Predom: ${info.topNeighborhood} • Total: ${info.total}` : "Sem linhas no Excel para esse cluster";
+
+      left.appendChild(title);
+      left.appendChild(sub);
+
+      const right = document.createElement("div");
+      right.style.display = "flex";
+      right.style.alignItems = "center";
+      right.style.gap = "8px";
+
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.checked = checked;
+
+      cb.addEventListener("change", () => {
+        if (cb.checked) selectedClusters.add(c);
+        else selectedClusters.delete(c);
+        updateSelectedCount();
+        applyStylesAndHover();
+        renderClusterList();
+      });
+
+      const zoomBtn = document.createElement("button");
+      zoomBtn.className = "btn";
+      zoomBtn.textContent = "Zoom";
+      zoomBtn.addEventListener("click", () => {
+        const layer = layerByCluster.get(c);
+        if (layer) map.fitBounds(layer.getBounds(), { padding: [20, 20] });
+      });
+
+      right.appendChild(cb);
+      right.appendChild(zoomBtn);
+
+      item.appendChild(left);
+      item.appendChild(right);
+
+      clustersListEl.appendChild(item);
+    }
+
+    if (shown === 0) {
+      clustersListEl.innerHTML = `<div class="muted" style="padding:10px">Nada encontrado.</div>`;
+    }
+  }
+
+  searchEl.addEventListener("input", renderClusterList);
+
+  document.getElementById("btnAll").addEventListener("click", () => {
+    selectedClusters.clear();
+    for (const c of allClusters) selectedClusters.add(c);
+    updateSelectedCount();
+    renderClusterList();
+    applyStylesAndHover();
+  });
+
+  document.getElementById("btnNone").addEventListener("click", () => {
+    selectedClusters.clear();
+    updateSelectedCount();
+    renderClusterList();
+    applyStylesAndHover();
+  });
+
+  document.getElementById("btnOnlyData").addEventListener("click", () => {
+    selectedClusters.clear();
+    for (const c of allClusters) {
+      const info = clusterInfo.get(c);
+      if (info?.topNeighborhood) selectedClusters.add(c);
+    }
+    updateSelectedCount();
+    renderClusterList();
+    applyStylesAndHover();
+  });
+
+  // =========================
+  // CARREGAR GEOJSON
+  // =========================
+  fetch("./mapa.geojson")
+    .then(r => {
+      if (!r.ok) throw new Error(`HTTP ${r.status} - Não achei ./mapa.geojson`);
+      return r.json();
+    })
+    .then(data => {
+      document.getElementById("geoStatus").textContent =
+        `GeoJSON: OK (${data.features?.length ?? 0} áreas)`;
+
+      let idx = 0;
+
+      geoLayer = L.geoJSON(data, {
+        style: styleNoData, // começa tudo escuro até importar excel
+        onEachFeature: (feature, layer) => {
+          const cluster = normalizeCluster(getFeatureZoneId(feature, idx++));
+          layerByCluster.set(cluster, layer);
+          allClusters.push(cluster);
+        }
+      }).addTo(map);
+
+      map.fitBounds(geoLayer.getBounds(), { padding: [12, 12] });
+
+      updateSelectedCount();
+      renderClusterList();
+      applyStylesAndHover();
+    })
+    .catch(err => {
+      console.error(err);
+      document.getElementById("geoStatus").textContent = "GeoJSON: ERRO";
+      alert("Não carregou mapa.geojson. Abra com Live Server e veja o Console (F12).");
+    });
+
+  // Recalcula labels quando mudar zoom (pra evitar embolo no zoom longe)
+  map.on("zoomend", () => {
+    refreshCenterLabels();
+  });
+
+  // =========================
+  // IMPORTAR EXCEL
+  // =========================
+  const xlsxInput = document.getElementById("xlsxInput");
+  xlsxInput.addEventListener("change", async (ev) => {
+    const file = ev.target.files?.[0];
+    if (!file) return;
+
+    try {
+      document.getElementById("xlsStatus").textContent = "Excel: lendo…";
+
+      const buf = await file.arrayBuffer();
+      const wb = XLSX.read(buf, { type: "array" });
+
+      const sheetName = wb.SheetNames[0];
+      const ws = wb.Sheets[sheetName];
+      const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true });
+
+      computePredominantNeighborhoodByCluster(rows);
+
+      document.getElementById("xlsStatus").textContent =
+        `Excel: OK (${clusterInfo.size} clusters com dados)`;
+
+      renderClusterList();
+      applyStylesAndHover();
+    } catch (e) {
+      console.error(e);
+      document.getElementById("xlsStatus").textContent = "Excel: ERRO";
+      alert("Erro ao ler o Excel. Veja o Console (F12) para detalhes.");
+    }
+  });
+</script>
+
+</body>
+</html>
