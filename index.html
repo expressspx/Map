@@ -3,10 +3,13 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Mapa + Excel (Seleção por clique + Aba com seta + Fullscreen)</title>
+  <title>Mapa + Excel (Seleção por clique + Toggle Satélite + Aba + Fullscreen)</title>
 
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- ✅ Google Material Symbols (setinha igual da foto) -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded" />
 
   <!-- SheetJS para ler .xlsx no navegador -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -33,12 +36,12 @@
     body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; }
     #map { height:100vh; width:100vw; }
 
-    /* Remove o "quadrado feio" de foco no Leaflet */
+    /* Remove foco feio */
     .leaflet-container :focus { outline: none !important; }
     .leaflet-interactive { outline: none !important; }
     svg.leaflet-zoom-animated path.leaflet-interactive:focus { outline: none !important; }
 
-    /* Tooltip / popup modernos */
+    /* ✅ TOOLTIP */
     .leaflet-tooltip{
       background: rgba(20,20,20,.92);
       color: #fff;
@@ -49,31 +52,8 @@
       font-weight: 900;
       letter-spacing: .2px;
     }
-    .leaflet-popup-content-wrapper{
-      border-radius: 18px;
-      box-shadow: var(--shadow);
-      border: 1px solid rgba(0,0,0,.08);
-      background: rgba(255,255,255,.98);
-    }
-    .leaflet-popup-tip{ box-shadow: var(--shadow2); }
-    .popupBox{ font-family: system-ui; font-size: 13px; line-height: 1.25; }
-    .popupBox .title{
-      display:flex; align-items:center; gap:10px;
-      font-weight: 1000; font-size: 14px; margin-bottom: 10px;
-    }
-    .tag{
-      display:inline-flex; align-items:center;
-      padding: 4px 10px;
-      border-radius: 999px;
-      border: 1px solid rgba(0,0,0,.10);
-      background: rgba(255,45,45,.10);
-      font-weight: 1000;
-    }
 
-    /* =========================
-       LABEL DO CLUSTER (SEM “BOLINHA BRANCA”)
-       - agora fica só o texto, com sombra e contorno, bem agradável
-       ========================= */
+    /* LABEL DO CLUSTER */
     .cluster-text {
       background: transparent;
       border: none;
@@ -91,9 +71,7 @@
       opacity: .96;
     }
 
-    /* =========================
-       DRAWER (PAINEL)
-       ========================= */
+    /* DRAWER (PAINEL) */
     .drawer{
       position: fixed;
       left: 12px;
@@ -106,14 +84,12 @@
       border: 1px solid var(--border);
       box-shadow: var(--shadow);
       overflow: hidden;
-
       transform: translateX(0);
       transition: transform .22s ease;
     }
     .drawer.closed{
       transform: translateX(calc(-1 * (var(--panelW) + 22px)));
     }
-
     .panelInner{ padding: 12px; font-size: 13px; }
 
     .panelHead{
@@ -244,9 +220,7 @@
     .cluster-path.nodata{ filter: drop-shadow(0 8px 14px rgba(0,0,0,.30)); }
     .cluster-path.selected{ filter: drop-shadow(0 12px 18px rgba(0,0,0,.34)); }
 
-    /* =========================
-       ABINHA COM SETA (IGUAL FOTO)
-       ========================= */
+    /* Abinha com seta */
     .tabArrow{
       position: fixed;
       z-index: 10000;
@@ -254,24 +228,19 @@
       left: calc(12px + var(--panelW) - 10px);
       height: 44px;
       padding: 0 12px 0 10px;
-
       display:flex;
       align-items:center;
       gap:10px;
-
       border-radius: 999px;
       background: rgba(255,255,255,.92);
       border: 1px solid rgba(0,0,0,.12);
       box-shadow: var(--shadow2);
       backdrop-filter: blur(10px);
-
       cursor:pointer;
       user-select:none;
-
       transition: left .22s ease;
     }
     .tabArrow.closed{ left: 12px; }
-
     .tabArrow .dot{
       width:10px;height:10px;border-radius:999px;
       background: var(--stroke);
@@ -285,6 +254,12 @@
     .tabArrow b{ font-size: 13px; font-weight: 1000; }
     .tabArrow small{ opacity:.72; font-weight: 900; }
 
+    .material-symbols-rounded{
+      font-variation-settings: 'FILL' 0, 'wght' 700, 'GRAD' 0, 'opsz' 24;
+      -webkit-font-smoothing: antialiased;
+      text-rendering: geometricPrecision;
+    }
+
     .chev{
       width: 30px;
       height: 30px;
@@ -294,11 +269,12 @@
       justify-content:center;
       border: 1px solid rgba(0,0,0,.12);
       background: rgba(255,255,255,.90);
-      font-weight: 1000;
+      box-shadow: 0 10px 18px rgba(0,0,0,.10);
+      color: rgba(0,0,0,.70);
       line-height: 1;
       transition: transform .20s ease;
+      font-size: 22px;
     }
-    .tabArrow .chev::before{ content: "›"; font-size: 22px; margin-top: -2px; }
     .tabArrow.closed .chev{ transform: rotate(180deg); }
 
     @media (max-width: 480px){
@@ -306,6 +282,306 @@
       .drawer{ top: 62px; }
       .tabArrow{ top: 12px; left: calc(12px + var(--panelW) - 10px); }
       .tabArrow.closed{ left: 12px; }
+    }
+
+    /* ✅ INFO LATERAL (só no hover) */
+    .leaflet-control.hoverInfo{
+      border: 1px solid rgba(0,0,0,.12) !important;
+      border-radius: 16px !important;
+      box-shadow: var(--shadow2) !important;
+      background: rgba(255,255,255,.92) !important;
+      backdrop-filter: blur(10px) !important;
+      padding: 10px !important;
+      width: 300px;
+      max-width: 78vw;
+      margin-top: 10px;
+      overflow: hidden;
+      display: none;
+    }
+    .leaflet-control.hoverInfo.show{ display:block; }
+    .hoverInfo .hiTop{
+      display:flex; align-items:center; justify-content:space-between;
+      gap:10px; margin-bottom: 10px;
+    }
+    .hoverInfo .hiTag{
+      display:inline-flex; align-items:center;
+      padding: 4px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(0,0,0,.10);
+      background: rgba(255,45,45,.10);
+      font-weight: 1000;
+    }
+    .hoverInfo .hiChip{
+      display:inline-flex; align-items:center;
+      padding: 4px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(0,0,0,.10);
+      background: rgba(0,0,0,.06);
+      font-weight: 1000;
+      opacity:.85;
+    }
+    .hoverInfo .hiRow{
+      display:flex; justify-content:space-between; gap:10px;
+      padding: 6px 0;
+      border-top: 1px dashed rgba(0,0,0,.12);
+    }
+    .hoverInfo .hiRow:first-of-type{ border-top:none; padding-top:0; }
+    .hoverInfo .hiRow b{ font-weight:1000; }
+    .hoverInfo .hiVal{ font-weight:900; opacity:.9; text-align:right; }
+
+    /* =========================
+       ✅ CONTROLE "SATÉLITE" COM TOGGLE
+       ========================= */
+    .leaflet-control.satToggle{
+      border: 1px solid rgba(0,0,0,.12) !important;
+      border-radius: 16px !important;
+      box-shadow: var(--shadow2) !important;
+      background: rgba(255,255,255,.92) !important;
+      backdrop-filter: blur(10px) !important;
+      padding: 10px !important;
+      overflow: hidden;
+    }
+    .satRow{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      min-width: 220px;
+    }
+    .satRow .satTitle{
+      font-weight: 1000;
+      font-size: 13px;
+      letter-spacing: .2px;
+      color: rgba(0,0,0,.82);
+      white-space: nowrap;
+    }
+
+    /* ======= TOGGLE (Uiverse) — colado e levemente ajustado p/ caber ======= */
+    .toggle-container {
+      position: relative;
+      width: 150px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      perspective: 800px;
+      z-index: 5;
+      transform: scale(.85);
+      transform-origin: right center;
+    }
+    .toggle-wrap { position: relative; width: 100%; height: 60px; transform-style: preserve-3d; }
+    .toggle-input { position: absolute; opacity: 0; width: 0; height: 0; }
+    .toggle-track {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 30, 60, 0.4);
+      border-radius: 30px;
+      cursor: pointer;
+      box-shadow: 0 0 15px rgba(0, 80, 255, 0.2), inset 0 0 10px rgba(0, 0, 0, 0.8);
+      overflow: hidden;
+      backdrop-filter: blur(5px);
+      transition: all 0.6s cubic-bezier(0.23, 1, 0.32, 1);
+      border: 1px solid rgba(0, 150, 255, 0.3);
+    }
+    .toggle-track::before {
+      content: "";
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+      background: radial-gradient(ellipse at center, rgba(0, 80, 255, 0.1) 0%, rgba(0, 0, 0, 0) 70%),
+        linear-gradient(90deg, rgba(0, 60, 120, 0.1) 0%, rgba(0, 30, 60, 0.2) 100%);
+      opacity: 0.6;
+      transition: all 0.6s cubic-bezier(0.23, 1, 0.32, 1);
+    }
+    .toggle-track::after {
+      content: "";
+      position: absolute; top: 2px; left: 2px; right: 2px; height: 10px;
+      background: linear-gradient(90deg, rgba(0, 170, 255, 0.3) 0%, rgba(0, 80, 255, 0.1) 100%);
+      border-radius: 30px 30px 0 0;
+      opacity: 0.7;
+      filter: blur(1px);
+    }
+    .track-lines { position: absolute; top: 50%; left: 0; width: 100%; height: 1px; transform: translateY(-50%); overflow: hidden; }
+    .track-line {
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+      background: repeating-linear-gradient(90deg, rgba(0, 150, 255, 0.3) 0px, rgba(0, 150, 255, 0.3) 5px, transparent 5px, transparent 15px);
+      animation: track-line-move 3s linear infinite;
+    }
+    @keyframes track-line-move { 0%{transform:translateX(0)} 100%{transform:translateX(20px)} }
+    .toggle-thumb {
+      position: absolute; width: 54px; height: 54px; left: 3px; top: 3px;
+      background: radial-gradient(circle, rgba(10, 40, 90, 0.9) 0%, rgba(0, 20, 50, 0.8) 100%);
+      border-radius: 50%;
+      box-shadow: 0 2px 15px rgba(0, 0, 0, 0.5), inset 0 0 15px rgba(0, 150, 255, 0.5);
+      transition: all 0.6s cubic-bezier(0.23, 1, 0.32, 1);
+      z-index: 2;
+      border: 1px solid rgba(0, 170, 255, 0.6);
+      overflow: hidden;
+      transform-style: preserve-3d;
+    }
+    .thumb-core {
+      position: absolute; width: 40px; height: 40px; top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      background: radial-gradient(circle, rgba(0, 180, 255, 0.6) 0%, rgba(0, 50, 120, 0.2) 100%);
+      border-radius: 50%;
+      box-shadow: 0 0 20px rgba(0, 150, 255, 0.5);
+      opacity: 0.9;
+      transition: all 0.6s cubic-bezier(0.23, 1, 0.32, 1);
+    }
+    .thumb-inner {
+      position: absolute; width: 25px; height: 25px; top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      background: radial-gradient(circle, rgba(255, 255, 255, 0.8) 0%, rgba(100, 200, 255, 0.5) 100%);
+      border-radius: 50%;
+      box-shadow: 0 0 10px rgba(100, 200, 255, 0.7);
+      opacity: 0.7;
+      transition: all 0.6s cubic-bezier(0.23, 1, 0.32, 1);
+      animation: pulse 2s infinite alternate;
+    }
+    @keyframes pulse {
+      0%{opacity:.5; transform:translate(-50%,-50%) scale(.9)}
+      100%{opacity:.8; transform:translate(-50%,-50%) scale(1.1)}
+    }
+    .thumb-scan{
+      position:absolute; width:100%; height:5px; top:0; left:0;
+      background: linear-gradient(90deg, rgba(0,0,0,0) 0%, rgba(0,150,255,.5) 20%, rgba(255,255,255,.8) 50%, rgba(0,150,255,.5) 80%, rgba(0,0,0,0) 100%);
+      filter: blur(1px);
+      animation: thumb-scan 2s linear infinite;
+      opacity: 0.7;
+    }
+    @keyframes thumb-scan { 0%{top:-5px;opacity:0} 20%{opacity:.7} 80%{opacity:.7} 100%{top:54px;opacity:0} }
+    .thumb-particles{ position:absolute; width:100%; height:100%; top:0; left:0; overflow:hidden; }
+    .thumb-particle{
+      position:absolute; width:3px; height:3px;
+      background: rgba(100,200,255,.8);
+      border-radius:50%;
+      box-shadow: 0 0 5px rgba(100,200,255,.8);
+      animation: thumb-particle-float 3s infinite ease-out;
+      opacity:0;
+    }
+    .thumb-particle:nth-child(1){ top:70%; left:30%; animation-delay:.2s; }
+    .thumb-particle:nth-child(2){ top:60%; left:60%; animation-delay:.6s; }
+    .thumb-particle:nth-child(3){ top:50%; left:40%; animation-delay:1s; }
+    .thumb-particle:nth-child(4){ top:40%; left:70%; animation-delay:1.4s; }
+    .thumb-particle:nth-child(5){ top:80%; left:50%; animation-delay:1.8s; }
+    @keyframes thumb-particle-float { 0%{transform:translateY(0) scale(1);opacity:0} 20%{opacity:.8} 100%{transform:translateY(-30px) scale(0);opacity:0} }
+
+    .toggle-data{ position:absolute; width:100%; height:100%; z-index:1; }
+    .data-text{ position:absolute; font-size:12px; font-weight:500; letter-spacing:1px; text-transform:uppercase; transition: all .5s ease; }
+    .data-text.off{ right:12px; top:50%; transform:translateY(-50%); opacity:1; color: rgba(0,150,255,.6); text-shadow:0 0 5px rgba(0,100,255,.4); }
+    .data-text.on{ left:15px; top:50%; transform:translateY(-50%); opacity:0; color: rgba(0,255,150,.6); text-shadow:0 0 5px rgba(0,255,100,.4); }
+
+    .status-indicator{
+      position:absolute; width:10px; height:10px; border-radius:50%;
+      background: radial-gradient(circle, rgba(0,180,255,.8) 0%, rgba(0,80,200,.4) 100%);
+      box-shadow: 0 0 10px rgba(0,150,255,.5);
+      animation: blink 2s infinite alternate;
+      transition: all .6s cubic-bezier(0.23, 1, 0.32, 1);
+    }
+    .status-indicator.off{ top:25px; right:15px; }
+    .status-indicator.on{
+      top:25px; left:15px; opacity:0;
+      background: radial-gradient(circle, rgba(0,255,150,.8) 0%, rgba(0,200,80,.4) 100%);
+      box-shadow: 0 0 10px rgba(0,255,150,.5);
+    }
+    @keyframes blink { 0%,100%{opacity:.5; transform:scale(.9)} 50%{opacity:1; transform:scale(1.1)} }
+
+    .energy-rings{
+      position:absolute; width:54px; height:54px; left:3px; top:3px; pointer-events:none; z-index:1;
+      transition: all .6s cubic-bezier(0.23, 1, 0.32, 1);
+    }
+    .energy-ring{
+      position:absolute; top:50%; left:50%;
+      transform: translate(-50%, -50%);
+      border-radius:50%; border:2px solid transparent; opacity:0;
+    }
+    .energy-ring:nth-child(1){ width:50px; height:50px; border-top-color: rgba(0,150,255,.5); border-right-color: rgba(0,150,255,.3); animation: spin 3s linear infinite; }
+    .energy-ring:nth-child(2){ width:40px; height:40px; border-bottom-color: rgba(0,150,255,.5); border-left-color: rgba(0,150,255,.3); animation: spin 2s linear infinite reverse; }
+    .energy-ring:nth-child(3){ width:30px; height:30px; border-left-color: rgba(0,150,255,.5); border-top-color: rgba(0,150,255,.3); animation: spin 1.5s linear infinite; }
+    @keyframes spin { 0%{transform:translate(-50%,-50%) rotate(0deg)} 100%{transform:translate(-50%,-50%) rotate(360deg)} }
+
+    .interface-lines{ position:absolute; width:100%; height:100%; pointer-events:none; }
+    .interface-line{ position:absolute; background: rgba(0,150,255,.3); transition: all .6s cubic-bezier(0.23, 1, 0.32, 1); }
+    .interface-line:nth-child(1){ width:15px; height:1px; bottom:-5px; left:20px; }
+    .interface-line:nth-child(2){ width:1px; height:8px; bottom:-12px; left:35px; }
+    .interface-line:nth-child(3){ width:25px; height:1px; bottom:-12px; left:35px; }
+    .interface-line:nth-child(4){ width:15px; height:1px; bottom:-5px; right:20px; }
+    .interface-line:nth-child(5){ width:1px; height:8px; bottom:-12px; right:35px; }
+    .interface-line:nth-child(6){ width:25px; height:1px; bottom:-12px; right:10px; }
+
+    .toggle-reflection{
+      position:absolute; width:100%; height:100%; top:0; left:0;
+      background: linear-gradient(135deg, rgba(255,255,255,.1) 0%, rgba(255,255,255,0) 40%);
+      border-radius:30px; pointer-events:none;
+    }
+    .holo-glow{
+      position:absolute; width:100%; height:100%; border-radius:30px;
+      background: radial-gradient(ellipse at center, rgba(0,150,255,.2) 0%, rgba(0,0,0,0) 70%);
+      filter: blur(10px);
+      opacity: .5;
+      transition: all .6s cubic-bezier(0.23, 1, 0.32, 1);
+      z-index:0;
+    }
+
+    .toggle-input:checked + .toggle-track{
+      background: rgba(0, 60, 30, 0.4);
+      border-color: rgba(0, 255, 150, 0.3);
+      box-shadow: 0 0 15px rgba(0, 255, 150, 0.2), inset 0 0 10px rgba(0, 0, 0, 0.8);
+    }
+    .toggle-input:checked + .toggle-track::before{
+      background: radial-gradient(ellipse at center, rgba(0,255,150,.1) 0%, rgba(0,0,0,0) 70%),
+        linear-gradient(90deg, rgba(0,120,60,.1) 0%, rgba(0,60,30,.2) 100%);
+    }
+    .toggle-input:checked + .toggle-track::after{
+      background: linear-gradient(90deg, rgba(0,255,150,.3) 0%, rgba(0,160,80,.1) 100%);
+    }
+    .toggle-input:checked + .toggle-track .track-line{
+      background: repeating-linear-gradient(90deg, rgba(0,255,150,.3) 0px, rgba(0,255,150,.3) 5px, transparent 5px, transparent 15px);
+      animation-direction: reverse;
+    }
+    .toggle-input:checked + .toggle-track .toggle-thumb{
+      left: calc(100% - 57px);
+      background: radial-gradient(circle, rgba(10, 90, 40, 0.9) 0%, rgba(0, 50, 20, 0.8) 100%);
+      border-color: rgba(0, 255, 150, 0.6);
+      box-shadow: 0 2px 15px rgba(0,0,0,.5), inset 0 0 15px rgba(0,255,150,.5);
+    }
+    .toggle-input:checked + .toggle-track .thumb-core{
+      background: radial-gradient(circle, rgba(0,255,150,.6) 0%, rgba(0,120,50,.2) 100%);
+      box-shadow: 0 0 20px rgba(0,255,150,.5);
+    }
+    .toggle-input:checked + .toggle-track .thumb-inner{
+      background: radial-gradient(circle, rgba(255,255,255,.8) 0%, rgba(100,255,200,.5) 100%);
+      box-shadow: 0 0 10px rgba(100,255,200,.7);
+    }
+    .toggle-input:checked + .toggle-track .thumb-scan{
+      background: linear-gradient(90deg, rgba(0,0,0,0) 0%, rgba(0,255,150,.5) 20%, rgba(255,255,255,.8) 50%, rgba(0,255,150,.5) 80%, rgba(0,0,0,0) 100%);
+    }
+    .toggle-input:checked + .toggle-track .thumb-particle{
+      background: rgba(100,255,200,.8);
+      box-shadow: 0 0 5px rgba(100,255,200,.8);
+    }
+    .toggle-input:checked + .toggle-track .data-text.off{ opacity: 0; }
+    .toggle-input:checked + .toggle-track .data-text.on{ opacity: 1; }
+    .toggle-input:checked + .toggle-track .status-indicator.off{ opacity: 0; }
+    .toggle-input:checked + .toggle-track .status-indicator.on{ opacity: 1; }
+    .toggle-input:checked + .toggle-track .energy-rings{ left: calc(100% - 57px); }
+    .toggle-input:checked + .toggle-track .energy-ring{ opacity: 1; }
+    .toggle-input:checked + .toggle-track .energy-ring:nth-child(1){
+      border-top-color: rgba(0,255,150,.5); border-right-color: rgba(0,255,150,.3);
+    }
+    .toggle-input:checked + .toggle-track .energy-ring:nth-child(2){
+      border-bottom-color: rgba(0,255,150,.5); border-left-color: rgba(0,255,150,.3);
+    }
+    .toggle-input:checked + .toggle-track .energy-ring:nth-child(3){
+      border-left-color: rgba(0,255,150,.5); border-top-color: rgba(0,255,150,.3);
+    }
+    .toggle-input:checked + .toggle-track .interface-line{ background: rgba(0,255,150,.3); }
+    .toggle-input:checked + .toggle-track .holo-glow{
+      background: radial-gradient(ellipse at center, rgba(0,255,150,.2) 0%, rgba(0,0,0,0) 70%);
+    }
+    .toggle-input:hover + .toggle-track{
+      box-shadow: 0 0 20px rgba(0,150,255,.3), inset 0 0 10px rgba(0,0,0,.8);
+    }
+    .toggle-input:checked:hover + .toggle-track{
+      box-shadow: 0 0 20px rgba(0,255,150,.3), inset 0 0 10px rgba(0,0,0,.8);
     }
   </style>
 </head>
@@ -320,7 +596,7 @@
     <b>Painel</b>
     <small id="tabHint">aberto</small>
   </div>
-  <span class="chev" aria-hidden="true"></span>
+  <span class="chev material-symbols-rounded" aria-hidden="true">chevron_right</span>
 </div>
 
 <!-- Drawer -->
@@ -402,16 +678,157 @@
   }
   tabArrow.addEventListener("click", toggleDrawer);
   btnClose.addEventListener("click", () => setDrawer(false));
-  setDrawer(true);
 
   // =========================
   // MAPA
   // =========================
   const map = L.map("map", { zoomControl: true }).setView([-23.45, -46.53], 12);
-  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+
+  // ✅ Base layers
+  const baseOSM = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
     maxZoom: 19,
     attribution: "© OpenStreetMap"
-  }).addTo(map);
+  });
+
+  const baseSatellite = L.tileLayer(
+    "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+    { attribution: "Tiles © Esri", maxZoom: 19 }
+  );
+
+  // Começa no mapa normal
+  baseOSM.addTo(map);
+
+  // =========================
+  // ✅ CONTROLE SATÉLITE COM TOGGLE (no lugar do layers)
+  // =========================
+  const satControl = L.control({ position: "topright" });
+  satControl.onAdd = function(){
+    const div = L.DomUtil.create("div", "leaflet-control satToggle");
+    div.innerHTML = `
+      <div class="satRow">
+        <div class="satTitle">Satélite</div>
+
+        <div class="toggle-container">
+          <div class="toggle-wrap">
+            <input class="toggle-input" id="holo-toggle" type="checkbox" />
+            <label class="toggle-track" for="holo-toggle">
+              <div class="track-lines">
+                <div class="track-line"></div>
+              </div>
+
+              <div class="toggle-thumb">
+                <div class="thumb-core"></div>
+                <div class="thumb-inner"></div>
+                <div class="thumb-scan"></div>
+                <div class="thumb-particles">
+                  <div class="thumb-particle"></div>
+                  <div class="thumb-particle"></div>
+                  <div class="thumb-particle"></div>
+                  <div class="thumb-particle"></div>
+                  <div class="thumb-particle"></div>
+                </div>
+              </div>
+
+              <div class="toggle-data">
+                <div class="data-text off">OFF</div>
+                <div class="data-text on">ON</div>
+                <div class="status-indicator off"></div>
+                <div class="status-indicator on"></div>
+              </div>
+
+              <div class="energy-rings">
+                <div class="energy-ring"></div>
+                <div class="energy-ring"></div>
+                <div class="energy-ring"></div>
+              </div>
+
+              <div class="interface-lines">
+                <div class="interface-line"></div>
+                <div class="interface-line"></div>
+                <div class="interface-line"></div>
+                <div class="interface-line"></div>
+                <div class="interface-line"></div>
+                <div class="interface-line"></div>
+              </div>
+
+              <div class="toggle-reflection"></div>
+              <div class="holo-glow"></div>
+            </label>
+          </div>
+        </div>
+      </div>
+    `;
+
+    // não deixar o mapa arrastar ao clicar no toggle
+    L.DomEvent.disableClickPropagation(div);
+    L.DomEvent.disableScrollPropagation(div);
+
+    // liga/desliga satélite
+    const cb = div.querySelector("#holo-toggle");
+    cb.addEventListener("change", () => {
+      if (cb.checked) {
+        if (map.hasLayer(baseOSM)) map.removeLayer(baseOSM);
+        if (!map.hasLayer(baseSatellite)) baseSatellite.addTo(map);
+      } else {
+        if (map.hasLayer(baseSatellite)) map.removeLayer(baseSatellite);
+        if (!map.hasLayer(baseOSM)) baseOSM.addTo(map);
+      }
+    });
+
+    return div;
+  };
+  satControl.addTo(map);
+
+  // =========================
+  // ✅ INFO LATERAL (só no hover) — fica embaixo do controle do satélite
+  // =========================
+  let hoverInfoDiv = null;
+
+  const hoverInfoControl = L.control({ position: "topright" });
+  hoverInfoControl.onAdd = function(){
+    const div = L.DomUtil.create("div", "leaflet-control hoverInfo");
+    div.innerHTML = "";
+    L.DomEvent.disableClickPropagation(div);
+    L.DomEvent.disableScrollPropagation(div);
+    hoverInfoDiv = div;
+    return div;
+  };
+  hoverInfoControl.addTo(map);
+
+  function hideHoverInfo(){
+    if (!hoverInfoDiv) return;
+    hoverInfoDiv.classList.remove("show");
+    hoverInfoDiv.innerHTML = "";
+  }
+
+  function showHoverInfo(cluster, info, hasData){
+    if (!hoverInfoDiv) return;
+
+    const total = info?.total ?? 0;
+    const top = info?.topNeighborhood ?? "—";
+    const topCount = info?.topCount ?? 0;
+
+    hoverInfoDiv.innerHTML = `
+      <div class="hiTop">
+        <span class="hiTag">${cluster}</span>
+        <span class="hiChip">${hasData ? "marcado/desmarcado" : "sem dados"}</span>
+      </div>
+
+      <div class="hiRow">
+        <b>Bairro predominante</b>
+        <div class="hiVal">${top}</div>
+      </div>
+      <div class="hiRow">
+        <b>Ocorrências do bairro</b>
+        <div class="hiVal">${topCount}</div>
+      </div>
+      <div class="hiRow">
+        <b>Total (cluster)</b>
+        <div class="hiVal">${total}</div>
+      </div>
+    `;
+    hoverInfoDiv.classList.add("show");
+  }
 
   // =========================
   // FULLSCREEN
@@ -485,11 +902,22 @@
     return s.replace(/\s+/g, " ");
   }
 
+  function toTitleCaseBR(str){
+    return String(str)
+      .toLowerCase()
+      .split(" ")
+      .filter(Boolean)
+      .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+      .join(" ");
+  }
+
   function normalizeNeighborhood(v) {
     if (v == null) return "";
     let s = String(v).trim();
     if (!s) return "";
-    return s.replace(/\s+/g, " ");
+    try { s = decodeURIComponent(escape(s)); } catch(e){}
+    s = s.normalize("NFC").replace(/\s+/g, " ");
+    return toTitleCaseBR(s);
   }
 
   function getFeatureZoneId(feature, idx) {
@@ -503,7 +931,6 @@
     p.setAttribute("class", classes);
   }
 
-  // Ordem A-1..A-n, depois B-1.., etc
   function clusterKey(c){
     const m = String(c).trim().match(/^([A-Za-z])-(\d+)$/);
     if(!m) return { letter: "Z", num: 999999, raw: String(c) };
@@ -519,7 +946,7 @@
   const allClusters = [];
   const selectedClusters = new Set();
 
-  const labelMarkerByCluster = new Map(); // agora é texto (sem bolinha)
+  const labelMarkerByCluster = new Map();
   const clusterInfo = new Map();
 
   // =========================
@@ -561,11 +988,9 @@
   }
 
   // =========================
-  // LABEL NO CENTRO (SÓ TEXTO)
+  // LABEL NO CENTRO
   // =========================
-  function polygonCenterLatLng(layer) {
-    return layer.getBounds().getCenter();
-  }
+  function polygonCenterLatLng(layer) { return layer.getBounds().getCenter(); }
 
   function removeAllCenterLabels() {
     for (const [, marker] of labelMarkerByCluster) map.removeLayer(marker);
@@ -574,10 +999,7 @@
 
   function setClusterCenterLabel(layer, cluster, hasData) {
     const old = labelMarkerByCluster.get(cluster);
-    if (old) {
-      map.removeLayer(old);
-      labelMarkerByCluster.delete(cluster);
-    }
+    if (old) { map.removeLayer(old); labelMarkerByCluster.delete(cluster); }
 
     const z = map.getZoom();
     if (SHOW_LABELS_MIN_ZOOM > 0 && z < SHOW_LABELS_MIN_ZOOM) return;
@@ -607,7 +1029,7 @@
   }
 
   // =========================
-  // SELEÇÃO: clicar no pedaço => marca/desmarca
+  // SELEÇÃO
   // =========================
   function toggleClusterSelection(cluster){
     if (selectedClusters.has(cluster)) selectedClusters.delete(cluster);
@@ -616,6 +1038,11 @@
     updateSelectedCount();
     applyStylesAndHover();
     renderClusterList();
+  }
+
+  function tooltipText(cluster, info){
+    const bairro = info?.topNeighborhood || "—";
+    return `${cluster} (${bairro})`;
   }
 
   // =========================
@@ -649,17 +1076,18 @@
       layer.off("mouseover");
       layer.off("mouseout");
       layer.off("click");
+      layer.off("touchstart");
+      layer.off("touchend");
 
       layer.on("mouseover", () => {
         if (!hasData) return;
 
-        // se não estiver selecionado, aplica hover
         const selectionActive2 = selectedClusters.size > 0;
         const isSelected2 = selectionActive2 && selectedClusters.has(cluster);
         if (!isSelected2) layer.setStyle(styleHover());
 
-        const text = `${cluster} (${info.topNeighborhood})`;
-        layer.bindTooltip(text, { sticky:true, direction:"top", opacity:0.95 }).openTooltip();
+        layer.bindTooltip(tooltipText(cluster, info), { sticky:true, direction:"top", opacity:0.95 }).openTooltip();
+        showHoverInfo(cluster, info, true);
       });
 
       layer.on("mouseout", () => {
@@ -674,36 +1102,32 @@
           else layer.setStyle(styleNormal());
         }
 
-        layer.closeTooltip();
-        layer.unbindTooltip();
-
         requestAnimationFrame(() => {
           const base = "leaflet-interactive cluster-path";
           const c1 = !hasData2 ? " nodata" : "";
           const c2 = (hasData2 && selectionActive2 && isSelected2) ? " selected" : "";
           setLayerCssClasses(layer, base + c1 + c2);
         });
+
+        layer.closeTooltip();
+        layer.unbindTooltip();
+        hideHoverInfo();
       });
 
-      // CLICK: marca/desmarca + popup
+      layer.on("touchstart", () => {
+        if (!hasData) return;
+        layer.bindTooltip(tooltipText(cluster, info), { sticky:true, direction:"top", opacity:0.95 }).openTooltip();
+        showHoverInfo(cluster, info, true);
+      });
+
+      layer.on("touchend", () => {
+        layer.closeTooltip();
+        layer.unbindTooltip();
+        hideHoverInfo();
+      });
+
       layer.on("click", () => {
         if (hasData) toggleClusterSelection(cluster);
-
-        const total = info?.total ?? 0;
-        const top = info?.topNeighborhood ?? "—";
-        const topCount = info?.topCount ?? 0;
-
-        layer.bindPopup(`
-          <div class="popupBox">
-            <div class="title">
-              <span class="tag">${cluster}</span>
-              <span style="opacity:.7;font-weight:900">${hasData ? "marcado/desmarcado" : "sem dados"}</span>
-            </div>
-            <div><b>Bairro predominante:</b> ${top}</div>
-            <div><b>Ocorrências do bairro:</b> ${topCount}</div>
-            <div><b>Total (cluster):</b> ${total}</div>
-          </div>
-        `).openPopup();
       });
     });
 
@@ -901,6 +1325,9 @@
       alert("Erro ao ler o Excel. Veja o Console (F12) para detalhes.");
     }
   });
+
+  // inicia painel aberto
+  setDrawer(true);
 </script>
 
 </body>
