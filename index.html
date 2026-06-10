@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Mapa + Excel (Seleção por clique + Toggle Satélite + Aba + Fullscreen)</title>
+  <title>Mapa + Excel (Colunas por título + Toggle Satélite + Aba + Fullscreen)</title>
 
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -623,7 +623,7 @@
     <div style="margin-bottom:8px">
       <input id="xlsxInput" type="file" accept=".xlsx,.xls" />
       <div class="muted" style="margin-top:6px">
-        Regras: <b>Neighborhood = coluna D</b> e <b>Cluster = coluna G</b>.
+        Agora procura automaticamente pelos títulos: <b>Neighborhood/Bairro</b> e <b>Cluster</b>.
       </div>
     </div>
 
@@ -951,19 +951,113 @@
 
   // =========================
   // EXCEL => BAIRRO PREDOMINANTE
+  // ✅ Agora procura as colunas pelo TÍTULO, não por posição fixa.
+  // Funciona mesmo se Neighborhood/Cluster mudarem de coluna.
   // =========================
+  function normalizeHeaderName(v){
+    return String(v ?? "")
+      .trim()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^A-Z0-9]+/gi, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .toUpperCase();
+  }
+
+  function findHeaderRowIndex(rows2D){
+    const maxRowsToCheck = Math.min(rows2D.length, 15);
+
+    for (let i = 0; i < maxRowsToCheck; i++) {
+      const headers = (rows2D[i] || []).map(normalizeHeaderName);
+
+      const hasCluster = headers.some(h => h === "CLUSTER" || h.includes("CLUSTER"));
+      const hasNeighborhood = headers.some(h =>
+        h === "NEIGHBORHOOD" ||
+        h.includes("NEIGHBORHOOD") ||
+        h === "BAIRRO" ||
+        h.includes("BAIRRO")
+      );
+
+      if (hasCluster && hasNeighborhood) return i;
+    }
+
+    return -1;
+  }
+
+  function findColumnIndex(headers, possibleNames){
+    const normalizedHeaders = headers.map(normalizeHeaderName);
+    const normalizedNames = possibleNames.map(normalizeHeaderName);
+
+    // 1º tenta bater exatamente com o título
+    for (const name of normalizedNames) {
+      const idx = normalizedHeaders.findIndex(h => h === name);
+      if (idx !== -1) return idx;
+    }
+
+    // 2º tenta encontrar título contendo o texto
+    for (const name of normalizedNames) {
+      const idx = normalizedHeaders.findIndex(h => h.includes(name) || name.includes(h));
+      if (idx !== -1) return idx;
+    }
+
+    return -1;
+  }
+
   function computePredominantNeighborhoodByCluster(rows2D) {
     clusterInfo.clear();
 
-    const COL_NEIGH = 3;   // D
-    const COL_CLUSTER = 6; // G
+    if (!rows2D || rows2D.length === 0) {
+      alert("O Excel está vazio ou não foi possível ler os dados.");
+      return;
+    }
 
-    let startRow = 0;
-    const header = rows2D[0] || [];
-    const headerJoined = header.map(x => String(x ?? "").toLowerCase()).join(" | ");
-    if (headerJoined.includes("neigh") || headerJoined.includes("cluster") || headerJoined.includes("bairro")) startRow = 1;
+    const headerRowIndex = findHeaderRowIndex(rows2D);
 
-    for (let i = startRow; i < rows2D.length; i++) {
+    if (headerRowIndex === -1) {
+      const firstRowsPreview = rows2D
+        .slice(0, 5)
+        .map((r, i) => `Linha ${i + 1}: ${(r || []).join(" | ")}`)
+        .join("\n");
+
+      alert(
+        "Não encontrei a linha de cabeçalho do Excel.\n\n" +
+        "Preciso encontrar os títulos Neighborhood/Bairro e Cluster.\n\n" +
+        "Primeiras linhas encontradas:\n" + firstRowsPreview
+      );
+      return;
+    }
+
+    const header = rows2D[headerRowIndex] || [];
+
+    const COL_NEIGH = findColumnIndex(header, [
+      "Neighborhood",
+      "Bairro",
+      "Neighbourhood",
+      "Região",
+      "Regiao"
+    ]);
+
+    const COL_CLUSTER = findColumnIndex(header, [
+      "Cluster",
+      "Clusters",
+      "Rota",
+      "Route"
+    ]);
+
+    if (COL_NEIGH === -1 || COL_CLUSTER === -1) {
+      const titlesFound = header.map(h => String(h ?? "").trim()).filter(Boolean).join(" | ");
+
+      alert(
+        "Não encontrei uma ou mais colunas necessárias.\n\n" +
+        `Coluna Bairro/Neighborhood: ${COL_NEIGH === -1 ? "NÃO ENCONTRADA" : "OK"}\n` +
+        `Coluna Cluster: ${COL_CLUSTER === -1 ? "NÃO ENCONTRADA" : "OK"}\n\n` +
+        "Títulos encontrados no Excel:\n" + titlesFound
+      );
+      return;
+    }
+
+    for (let i = headerRowIndex + 1; i < rows2D.length; i++) {
       const row = rows2D[i] || [];
       const neigh = normalizeNeighborhood(row[COL_NEIGH]);
       const cluster = normalizeCluster(row[COL_CLUSTER]);
