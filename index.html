@@ -332,41 +332,33 @@
     /* =========================
        ✅ MARCADOR CASINHA (endereço fixo)
        ========================= */
-    .home-marker-icon {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      width: 44px;
-      height: 44px;
-      border-radius: 50% 50% 50% 0;
-      background: linear-gradient(135deg, #ff2d2d, #c41010);
-      border: 3px solid #fff;
-      box-shadow: 0 4px 16px rgba(0,0,0,.35);
-      transform: rotate(-45deg);
+    .home-marker-wrapper {
       position: relative;
+      width: 52px;
+      height: 62px;
     }
-    .home-marker-icon .material-symbols-rounded {
-      transform: rotate(45deg);
-      color: #fff;
-      font-size: 24px;
-      font-variation-settings: 'FILL' 1, 'wght' 700, 'GRAD' 0, 'opsz' 24;
+    .home-marker-pin {
+      width: 52px;
+      height: 52px;
+      filter: drop-shadow(0 4px 10px rgba(0,0,0,.40));
     }
     .home-marker-label {
       position: absolute;
-      bottom: -28px;
+      top: 56px;
       left: 50%;
-      transform: translateX(-50%) rotate(45deg);
+      transform: translateX(-50%);
       white-space: nowrap;
       font-size: 11px;
       font-weight: 900;
       color: #1a1a1a;
-      background: rgba(255,255,255,.92);
-      padding: 3px 8px;
-      border-radius: 8px;
-      border: 1px solid rgba(0,0,0,.12);
-      box-shadow: 0 4px 12px rgba(0,0,0,.15);
+      background: rgba(255,255,255,.94);
+      padding: 4px 10px;
+      border-radius: 10px;
+      border: 1px solid rgba(0,0,0,.14);
+      box-shadow: 0 4px 14px rgba(0,0,0,.18);
       pointer-events: none;
       letter-spacing: .2px;
+      line-height: 1.2;
     }
 
     /* =========================
@@ -739,20 +731,53 @@
   baseOSM.addTo(map);
 
   // =========================
-  // ✅ MARCADOR FIXO — CASINHA
+  // ✅ MARCADOR FIXO — CASINHA (SVG embutido, sem depender de fonte externa)
   // R. Dr. Ricardo Ferreira dos Réis, 132 - Jardim Adriana, Guarulhos - SP
   // =========================
   const homeLatLng = [-23.4236747, -46.5238683];
 
+  const homeSVG = `
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 52 62" width="52" height="62">
+      <!-- Pin shape -->
+      <defs>
+        <linearGradient id="pinGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#ff4444"/>
+          <stop offset="100%" stop-color="#c41010"/>
+        </linearGradient>
+        <filter id="pinShadow" x="-20%" y="-10%" width="140%" height="140%">
+          <feDropShadow dx="0" dy="3" stdDeviation="3" flood-opacity="0.35"/>
+        </filter>
+      </defs>
+      <!-- Ponteiro -->
+      <path d="M26 58 C26 58 4 34 4 22 C4 10 14 2 26 2 C38 2 48 10 48 22 C48 34 26 58 26 58Z"
+            fill="url(#pinGrad)" stroke="#fff" stroke-width="3" filter="url(#pinShadow)"/>
+      <!-- Círculo branco interno -->
+      <circle cx="26" cy="22" r="14" fill="#fff" opacity="0.95"/>
+      <!-- Casinha (ícone SVG) -->
+      <g transform="translate(14, 10)">
+        <!-- telhado -->
+        <path d="M12 1 L1 10 L4 10 L4 22 L20 22 L20 10 L23 10 Z"
+              fill="none" stroke="#c41010" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+        <!-- corpo da casa -->
+        <rect x="4" y="10" width="16" height="12" fill="#c41010" opacity="0.12" rx="1"/>
+        <!-- porta -->
+        <rect x="9" y="14" width="6" height="8" rx="1" fill="#c41010" opacity="0.7"/>
+        <!-- maçaneta -->
+        <circle cx="13.5" cy="18.5" r="0.8" fill="#fff"/>
+        <!-- telhado preenchido -->
+        <path d="M12 1 L1 10 L23 10 Z" fill="#c41010" opacity="0.85"/>
+      </g>
+    </svg>`;
+
   const homeIcon = L.divIcon({
     className: "",
-    html: `<div class="home-marker-icon">
-             <span class="material-symbols-rounded">home</span>
-             <div class="home-marker-label">R. Dr. Ricardo Ferreira dos Réis, 132</div>
+    html: `<div class="home-marker-wrapper">
+             <div class="home-marker-pin">${homeSVG}</div>
+             <div class="home-marker-label">🏠 R. Dr. Ricardo F. dos Réis, 132</div>
            </div>`,
-    iconSize: [44, 44],
-    iconAnchor: [22, 44],
-    popupAnchor: [0, -46]
+    iconSize: [52, 62],
+    iconAnchor: [26, 58],
+    popupAnchor: [0, -50]
   });
 
   const homeMarker = L.marker(homeLatLng, {
@@ -762,9 +787,9 @@
   }).addTo(map);
 
   homeMarker.bindPopup(
-    `<div style="font-family:system-ui;min-width:200px">
-       <div style="font-weight:900;font-size:14px;margin-bottom:6px">🏠 Minha Casa</div>
-       <div style="font-size:12px;color:#333;line-height:1.5">
+    `<div style="font-family:system-ui;min-width:220px">
+       <div style="font-weight:900;font-size:15px;margin-bottom:6px">🏠 Minha Casa</div>
+       <div style="font-size:12px;color:#333;line-height:1.6">
          R. Dr. Ricardo Ferreira dos Réis, 132<br>
          Jardim Adriana — Guarulhos - SP<br>
          CEP 07135-370
