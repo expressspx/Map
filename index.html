@@ -330,6 +330,46 @@
     .hoverInfo .hiVal{ font-weight:900; opacity:.9; text-align:right; }
 
     /* =========================
+       ✅ MARCADOR CASINHA (endereço fixo)
+       ========================= */
+    .home-marker-icon {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 44px;
+      height: 44px;
+      border-radius: 50% 50% 50% 0;
+      background: linear-gradient(135deg, #ff2d2d, #c41010);
+      border: 3px solid #fff;
+      box-shadow: 0 4px 16px rgba(0,0,0,.35);
+      transform: rotate(-45deg);
+      position: relative;
+    }
+    .home-marker-icon .material-symbols-rounded {
+      transform: rotate(45deg);
+      color: #fff;
+      font-size: 24px;
+      font-variation-settings: 'FILL' 1, 'wght' 700, 'GRAD' 0, 'opsz' 24;
+    }
+    .home-marker-label {
+      position: absolute;
+      bottom: -28px;
+      left: 50%;
+      transform: translateX(-50%) rotate(45deg);
+      white-space: nowrap;
+      font-size: 11px;
+      font-weight: 900;
+      color: #1a1a1a;
+      background: rgba(255,255,255,.92);
+      padding: 3px 8px;
+      border-radius: 8px;
+      border: 1px solid rgba(0,0,0,.12);
+      box-shadow: 0 4px 12px rgba(0,0,0,.15);
+      pointer-events: none;
+      letter-spacing: .2px;
+    }
+
+    /* =========================
        ✅ CONTROLE "SATÉLITE" COM TOGGLE
        ========================= */
     .leaflet-control.satToggle{
@@ -697,6 +737,41 @@
 
   // Começa no mapa normal
   baseOSM.addTo(map);
+
+  // =========================
+  // ✅ MARCADOR FIXO — CASINHA
+  // R. Dr. Ricardo Ferreira dos Réis, 132 - Jardim Adriana, Guarulhos - SP
+  // =========================
+  const homeLatLng = [-23.4236747, -46.5238683];
+
+  const homeIcon = L.divIcon({
+    className: "",
+    html: `<div class="home-marker-icon">
+             <span class="material-symbols-rounded">home</span>
+             <div class="home-marker-label">R. Dr. Ricardo Ferreira dos Réis, 132</div>
+           </div>`,
+    iconSize: [44, 44],
+    iconAnchor: [22, 44],
+    popupAnchor: [0, -46]
+  });
+
+  const homeMarker = L.marker(homeLatLng, {
+    icon: homeIcon,
+    zIndexOffset: 9999,
+    interactive: true
+  }).addTo(map);
+
+  homeMarker.bindPopup(
+    `<div style="font-family:system-ui;min-width:200px">
+       <div style="font-weight:900;font-size:14px;margin-bottom:6px">🏠 Minha Casa</div>
+       <div style="font-size:12px;color:#333;line-height:1.5">
+         R. Dr. Ricardo Ferreira dos Réis, 132<br>
+         Jardim Adriana — Guarulhos - SP<br>
+         CEP 07135-370
+       </div>
+     </div>`,
+    { closeButton: true, className: "" }
+  );
 
   // =========================
   // ✅ CONTROLE SATÉLITE COM TOGGLE (no lugar do layers)
